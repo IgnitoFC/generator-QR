@@ -1,0 +1,91 @@
+<!-- generatorQR.html -->
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Generator QR Kartu Siswa - Absen Salat</title>
+<style>
+  body{font-family:system-ui,Arial; padding:18px; max-width:900px; margin:auto; background:#f7f9fc;}
+  h1{font-size:20px}
+  textarea{width:100%;height:120px;padding:8px;font-size:14px}
+  .controls{display:flex;gap:8px;margin:8px 0}
+  input, button{padding:10px;font-size:14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-top:12px}
+  .card{background:#fff;border-radius:8px;padding:10px;box-shadow:0 2px 6px rgba(0,0,0,.06);text-align:center}
+  canvas{display:block;margin:auto}
+  small{color:#666}
+</style>
+</head>
+<body>
+<h1>Generator QR Kartu Siswa (max 50)</h1>
+<p>Masukkan satu nama per baris. Sistem akan buat UID otomatis (S001, S002...).</p>
+
+<textarea id="names" placeholder="Contoh:
+Ahmad
+Budi
+Siti"></textarea>
+
+<div class="controls">
+  <button id="generate">Generate QR</button>
+  <button id="downloadAll">Download Semua (ZIP)</button>
+  <input id="school" placeholder="Nama Sekolah (opsional)" />
+</div>
+
+<div id="output" class="grid"></div>
+
+<!-- QRCode.js (tiny lib) -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+<!-- JSZip untuk zip file -->
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.0/dist/jszip.min.js"></script>
+<script>
+const generateBtn = document.getElementById('generate');
+const output = document.getElementById('output');
+const downloadAll = document.getElementById('downloadAll');
+
+function uidFromIndex(i){ return 'S' + String(i+1).padStart(3,'0'); }
+
+generateBtn.addEventListener('click', async () => {
+  output.innerHTML = '';
+  const lines = document.getElementById('names').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  if(lines.length === 0){ alert('Masukkan minimal 1 nama.'); return; }
+  if(lines.length > 50){ if(!confirm('Jumlah >50. Teruskan?')) return; }
+  for(let i=0;i<lines.length;i++){
+    const name = lines[i];
+    const uid = uidFromIndex(i);
+    const payload = JSON.stringify({uid, nama:name});
+    const card = document.createElement('div'); card.className='card';
+    const can = document.createElement('canvas'); can.width=160; can.height=160;
+    await QRCode.toCanvas(can, payload, {width:160, margin:1});
+    const caption = document.createElement('div'); caption.innerHTML = `<strong>${name}</strong><br><small>${uid}</small>`;
+    // download link
+    const a = document.createElement('a');
+    a.href = can.toDataURL('image/png');
+    a.download = `${uid}_${name.replace(/\s+/g,'_')}.png`;
+    a.textContent = 'Download PNG';
+    a.style.display='inline-block';
+    a.style.marginTop='8px';
+    card.appendChild(can);
+    card.appendChild(caption);
+    card.appendChild(a);
+    output.appendChild(card);
+  }
+});
+
+// ZIP all downloads (simple)
+downloadAll.addEventListener('click', async ()=>{
+  const canvases = output.querySelectorAll('canvas');
+  if(canvases.length === 0){ alert('Belum ada QR. Klik Generate dulu.'); return; }
+  const zip = new JSZip();
+  canvases.forEach((c, i) => {
+    const data = c.toDataURL('image/png').split(',')[1];
+    const filename = output.querySelectorAll('.card')[i].querySelector('small').innerText + '.png';
+    zip.file(filename, data, {base64: true});
+  });
+  const blob = await zip.generateAsync({type:'blob'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'qr_siswa.zip'; a.click();
+});
+</script>
+</body>
+</html>
